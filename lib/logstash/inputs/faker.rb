@@ -1,5 +1,5 @@
 # encoding: utf-8
-require "logstash-core"
+# require "logstash-core"
 require "logstash/inputs/base"
 require "logstash/namespace"
 require "logstash/util/decorators"
@@ -29,17 +29,12 @@ class LogStash::Inputs::Faker < LogStash::Inputs::Base
     number = 0
 
     while !stop? && (@count <= 0 || number < @count)
-      @codec.decode(@message.clone) do |event|
-        add_faker_fields(@add_faker_fields, event)
-      end
-    end
-
-    if @codec.respond_to?(:flush)
-      @codec.flush do |event|
-        decorate(event)
-        event.set("host", @host)
-        queue << event
-      end
+      event = LogStash::Event.new({})
+      add_faker_fields(event)
+      decorate(event)
+      event.set("host", @host)
+      queue << event
+      number += 1
     end
   end
 
