@@ -8,6 +8,27 @@ require "socket" # for Socket.gethostname
 
 I18n.reload!
 
+# [NOTE]
+# ===================================================================
+# The values put into the add_faker_field params must be available
+# modules and method calls from the Faker gem library seen at
+# https://github.com/stympy/faker/
+# ===================================================================
+# Example: 
+# [source, ruby]
+#     input {
+#       faker {
+#         count => 1
+#         add_faker_field => {
+#           "[name][last_name]" => "Name.last_name"
+#           "[name][first_name]" => "Name.first_name"
+#           "[address][city]" => "Address.city"
+#           "[address][address1]" => "Address.street_address"
+#         }
+#         overwrite_fields => true
+#       }
+#     }
+
 class LogStash::Inputs::Faker < LogStash::Inputs::Base
   config_name "faker"
 
@@ -15,8 +36,15 @@ class LogStash::Inputs::Faker < LogStash::Inputs::Base
 
   config :add_faker_field, :validate => :hash, :default => {}
 
+  # Will overwrite fields that are in the event prior to add_faker_field
+  # being invoked ( usually fields created using add_field ) if true
+  # when false this will insert the new faker values into an array with
+  # the previously defined event values
   config :overwrite_fields, :validate => :boolean, :default => false
 
+  # The number of events to generate
+  # When not explicitly defined plugin will
+  # generate events until stopped
   config :count, :validate => :number, :default => 0
 
   public
@@ -35,8 +63,8 @@ class LogStash::Inputs::Faker < LogStash::Inputs::Base
       event.set("host", @host)
       queue << event
       number += 1
-    end
-  end
+    end #end loop
+  end # end run
 
   protected
   def add_faker_fields(event)
