@@ -1,8 +1,10 @@
 # encoding: utf-8
-# require "logstash-core"
+require "logstash-core"
 require "logstash/inputs/base"
 require "logstash/namespace"
+require "logstash/util"
 require "logstash/util/decorators"
+require "json"
 require "faker"
 require "socket" # for Socket.gethostname
 
@@ -34,7 +36,28 @@ class LogStash::Inputs::Faker < LogStash::Inputs::Base
 
   default :codec, "plain"
 
+
+  # Similar to LogStash::Inputs::Base.add_field define a hash
+  # where the value is a Faker module and method call 
+  # ex: Name.first_name
   config :add_faker_field, :validate => :hash, :default => {}
+
+  # Add a splitable field. Currently only supports defining a 
+  # single field that will be used for generating sub-events
+  config :splitable_field, :validate => :string, :default => nil
+
+  # Add static values to the splitable field's data structure
+  # See add_field for structure definition
+  config :add_splitable_field, :validate => :hash, :default => {}
+
+  # Add Faker fields to the splitable object mappings
+  # These expect the same format of add_faker_field
+  config :add_splitable_faker_field, :validate => :hash, :default => {}
+
+  # define the number of entries into the array of the splitable field
+  # When set to 0 a random number will be used within 1-100 as the 
+  # splitable field count
+  config :splitable_field_count, :validate => :number, default: 0
 
   # Will overwrite fields that are in the event prior to add_faker_field
   # being invoked ( usually fields created using add_field ) if true
@@ -55,10 +78,12 @@ class LogStash::Inputs::Faker < LogStash::Inputs::Base
 
   def run(queue)
     number = 0
-
     while !stop? && (@count <= 0 || number < @count)
       event = LogStash::Event.new({})
       add_faker_fields(event)
+      if @splitable_field
+        add_splitable_fields(event)
+      end
       decorate(event)
       event.set("host", @host)
       queue << event
@@ -73,7 +98,29 @@ class LogStash::Inputs::Faker < LogStash::Inputs::Base
       event.remove(field) if @overwrite_fields
       new_fields[field] = Faker.class_eval(faker_string)
     end
-    LogStash::Util::Decorators.add_fields(new_fields,event,"inputs/#{self.class.name}")
+    LogStash::Util::Decorators.add_fields(new_fields, event,"inputs/#{self.class.name}")
+  end
+
+  protected
+  def add_splitable_fields(event)
+    event.remove(@splitable_field)
+    splitable_events = []
+    if @splitable_field_count <= 0
+      @splitable_field_count = rand(100)
+    end
+    @splitable_field_count.times do
+      new_event = LogStash::Event.new()
+      @add_splitable_faker_field.each do |field, faker_string|
+        new_event.set(field, Faker.class_eval(faker_string))
+      end
+      @add_splitable_field.each do |field, value|
+        new_event.set(field, value)
+      end
+      new_event.remove("@timestamp")
+      new_event.remove("@version")
+      splitable_events << new_event.to_hash
+    end
+    event.set(@splitable_field, splitable_events)
   end
 
   public

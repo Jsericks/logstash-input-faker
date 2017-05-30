@@ -14,10 +14,19 @@ describe LogStash::Inputs::Faker do
                             "first_name" => "Name.first_name",
                             "last_name" => "Name.last_name"
                           }
+    plg.splitable_field = "data"
+    plg.add_splitable_field = {
+                                "test" => "field"
+                              }
+    plg.add_splitable_faker_field = {
+                                      "[name][testing]" => "Name.first_name"
+                                    }
 
     event = plugin_input(plg) do |result|
       result.pop
     end
+
+    puts event.to_hash
 
     insist { event }.is_a? LogStash::Event
     insist { event.get("first_name") } != "Name.first_name"
