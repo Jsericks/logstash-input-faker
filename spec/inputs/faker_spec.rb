@@ -19,7 +19,7 @@ describe LogStash::Inputs::Faker do
                                 "test" => "field"
                               }
     plg.add_splitable_faker_field = {
-                                      "[name][testing]" => "Name.first_name"
+                                      "[name][testing]" => "Internet.user_name('%{first_name} %{last_name}', ['_'])"
                                     }
     plg.splitable_field_count = 10
 

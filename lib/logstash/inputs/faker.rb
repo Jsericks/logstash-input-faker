@@ -16,7 +16,7 @@ I18n.reload!
 # modules and method calls from the Faker gem library seen at
 # https://github.com/stympy/faker/
 # ===================================================================
-# Example: 
+# Example:
 # [source, ruby]
 #     input {
 #       faker {
@@ -38,11 +38,11 @@ class LogStash::Inputs::Faker < LogStash::Inputs::Base
 
 
   # Similar to LogStash::Inputs::Base.add_field define a hash
-  # where the value is a Faker module and method call 
+  # where the value is a Faker module and method call
   # ex: Name.first_name
   config :add_faker_field, :validate => :hash, :default => {}
 
-  # Add a splitable field. Currently only supports defining a 
+  # Add a splitable field. Currently only supports defining a
   # single field that will be used for generating sub-events
   config :splitable_field, :validate => :string, :default => nil
 
@@ -55,7 +55,7 @@ class LogStash::Inputs::Faker < LogStash::Inputs::Base
   config :add_splitable_faker_field, :validate => :hash, :default => {}
 
   # define the number of entries into the array of the splitable field
-  # When set to 0 a random number will be used within 1-100 as the 
+  # When set to 0 a random number will be used within 1-100 as the
   # splitable field count
   config :splitable_field_count, :validate => :number, default: 0
 
@@ -111,10 +111,10 @@ class LogStash::Inputs::Faker < LogStash::Inputs::Base
     @splitable_field_count.times do
       new_event = LogStash::Event.new()
       @add_splitable_faker_field.each do |field, faker_string|
-        new_event.set(field, Faker.class_eval(faker_string))
+        new_event.set(field, Faker.class_eval(event.sprintf(faker_string)))
       end
       @add_splitable_field.each do |field, value|
-        new_event.set(field, value)
+        new_event.set(field, event.sprintf(value))
       end
       new_event.remove("@timestamp")
       new_event.remove("@version")
