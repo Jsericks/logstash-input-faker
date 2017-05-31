@@ -36,6 +36,15 @@ class LogStash::Inputs::Faker < LogStash::Inputs::Base
 
   default :codec, "plain"
 
+  config :primary_key, :validate => :hash, :default => {}
+
+  config :foreign_keys, :validate => :array, :default => []
+
+  config :foreign_key_field, :validate => :string, :default => nil
+
+  config :add_primary_key_to_events, :validate => :boolean, :default => false
+
+  config :add_foreign_keys_to_events, :validate => :boolean, :default => false
 
   # Similar to LogStash::Inputs::Base.add_field define a hash
   # where the value is a Faker module and method call
@@ -78,8 +87,13 @@ class LogStash::Inputs::Faker < LogStash::Inputs::Base
 
   def run(queue)
     number = 0
+    set_primary_key   if @add_primary_key_to_events
+    set_foreign_keys  if @add_foreign_keys_to_events
     while !stop? && (@count <= 0 || number < @count)
       event = LogStash::Event.new({})
+      if @add_primary_key_to_events
+        LogStash::Util::Decorators.add_fields(@primary_key, event,"inputs/#{self.class.name}")
+      end
       add_faker_fields(event)
       if @splitable_field
         add_splitable_fields(event)
@@ -105,6 +119,7 @@ class LogStash::Inputs::Faker < LogStash::Inputs::Base
   def add_splitable_fields(event)
     event.remove(@splitable_field)
     splitable_events = []
+    used_ids = []
     if @splitable_field_count <= 0
       @splitable_field_count = rand(100)
     end
@@ -116,11 +131,53 @@ class LogStash::Inputs::Faker < LogStash::Inputs::Base
       @add_splitable_field.each do |field, value|
         new_event.set(field, event.sprintf(value))
       end
+      if @add_foreign_keys_to_events
+        key = (@foreign_keys - used_ids).sample
+        if key.nil?
+          used_ids = []
+          key = (@foreign_keys - used_ids).sample
+        else
+          new_event.set(@foreign_key_field, key)
+        end
+        used_ids.push(key)
+      end
       new_event.remove("@timestamp")
       new_event.remove("@version")
       splitable_events << new_event.to_hash
     end
     event.set(@splitable_field, splitable_events)
+  end
+
+  protected
+  def set_primary_key
+    if @add_primary_key_to_events && @primary_key.empty?
+      @primary_key = { "[id]" => Faker::Number.number(10).to_s }
+    end
+  end
+
+  protected
+  def set_foreign_keys
+    if @add_foreign_keys_to_events && @foreign_keys.empty?
+      @foreign_key_field = "[foreign_id]" if @foreign_key_field.to_s.empty?
+      if @splitable_field_count <= 0
+        if @count <= 0
+          generate_foreign_keys(@count)
+        else
+          generate_foreign_keys(1000)
+        end
+      else
+        generate_foreign_keys(@splitable_field_count)
+      end
+    end
+  end
+
+  protected
+  def generate_foreign_keys(key_count)
+    @foreign_keys = []
+    while @foreign_keys.size < key_count
+      @foreign_keys.push(Faker::Number.number(10).to_s)
+      @foreign_keys.uniq!
+    end
   end
 
   public
