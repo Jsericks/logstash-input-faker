@@ -19,8 +19,10 @@ describe LogStash::Inputs::Faker do
                                 "test" => "field"
                               }
     plg.add_splitable_faker_field = {
-                                      "[name][testing]" => "Internet.user_name('%{first_name} %{last_name}', ['_'])"
+                                      "[name][testing]" => "Internet.user_name()",
+                                      "[follower_id]" => "Number.number(10)"
                                     }
+    plg.multiply_splitable_field = { "[follower_id]" => 10 }
     plg.splitable_field_count = 10
     plg.add_foreign_keys_to_events = true
     plg.foreign_key_field = "[id]"

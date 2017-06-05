@@ -46,6 +46,10 @@ class LogStash::Inputs::Faker < LogStash::Inputs::Base
 
   config :add_foreign_keys_to_events, :validate => :boolean, :default => false
 
+  config :multiply_field, :validate => :hash, :default => {}
+
+  config :multiply_splitable_field, :validate => :hash, :default => {}
+
   # Similar to LogStash::Inputs::Base.add_field define a hash
   # where the value is a Faker module and method call
   # ex: Name.first_name
@@ -91,12 +95,12 @@ class LogStash::Inputs::Faker < LogStash::Inputs::Base
     set_foreign_keys  if @add_foreign_keys_to_events
     while !stop? && (@count <= 0 || number < @count)
       event = LogStash::Event.new({})
-      if @add_primary_key_to_events
-        LogStash::Util::Decorators.add_fields(@primary_key, event,"inputs/#{self.class.name}")
-      end
       add_faker_fields(event)
       if @splitable_field
         add_splitable_fields(event)
+      end
+      if @add_primary_key_to_events
+        LogStash::Util::Decorators.add_fields(@primary_key, event,"inputs/#{self.class.name}")
       end
       decorate(event)
       event.set("host", @host)
@@ -106,11 +110,26 @@ class LogStash::Inputs::Faker < LogStash::Inputs::Base
   end # end run
 
   protected
+  def generate_multiplied_values(value, count, is_faker=false)
+    num = (count == 0 ? rand(1000) : count)
+    if is_faker
+      return num.times.map{ Faker.class_eval(value) }
+    else
+      return num.times.map{ value }
+    end
+  end
+
+  protected
   def add_faker_fields(event)
     new_fields = {}
     @add_faker_field.each do |field, faker_string|
-      event.remove(field) if @overwrite_fields
-      new_fields[field] = Faker.class_eval(faker_string)
+      if @multiply_field[field]
+        event.remove(field) if @overwrite_fields
+        new_fields[field] = generate_multiplied_values(faker_string, @multiply_field[field], true)
+      else
+        event.remove(field) if @overwrite_fields
+        new_fields[field] = Faker.class_eval(faker_string)
+      end
     end
     LogStash::Util::Decorators.add_fields(new_fields, event,"inputs/#{self.class.name}")
   end
@@ -125,11 +144,19 @@ class LogStash::Inputs::Faker < LogStash::Inputs::Base
     end
     @splitable_field_count.times do
       new_event = LogStash::Event.new()
-      @add_splitable_faker_field.each do |field, faker_string|
-        new_event.set(field, Faker.class_eval(event.sprintf(faker_string)))
-      end
       @add_splitable_field.each do |field, value|
-        new_event.set(field, event.sprintf(value))
+        if @multiply_splitable_field[field]
+          new_event.set(field, generate_multiplied_values(faker_string, @multiply_splitable_field[field], false))
+        else
+          new_event.set(field, event.sprintf(value))
+        end
+      end
+      @add_splitable_faker_field.each do |field, faker_string|
+        if @multiply_splitable_field[field]
+          new_event.set(field, generate_multiplied_values(faker_string, @multiply_splitable_field[field], true))
+        else
+          new_event.set(field, event.sprintf(Faker.class_eval(faker_string)))
+        end
       end
       if @add_foreign_keys_to_events
         key = (@foreign_keys - used_ids).sample
